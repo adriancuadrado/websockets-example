@@ -1,0 +1,118 @@
+<html>
+
+<head>
+    <style>
+        input,
+        button {
+            padding: 10px;
+        }
+
+        #flexContainer {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .container {
+            width: 200px;
+            border: solid 5px black;
+            margin: 10px;
+        }
+
+        .id {
+            border: solid 5px black;
+            margin: 10px;
+        }
+
+        .circle {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            left: 0px;
+            border-radius: 50px;
+            border: solid 5px black;
+            background-color: purple;
+            box-sizing: border-box;
+            transition-duration: 0.5s;
+        }
+    </style>
+</head>
+
+<body>
+    <h1 id="myId">My ID:&nbsp;</h1>
+    <button id="left">◀</button>
+    <button id="right">▶</button>
+    <div id="flexContainer"></div>
+    <script>
+        let isSocketOpen = false;
+        const socket = new WebSocket('ws://localhost:8080');
+        socket.onopen = () => {
+            isSocketOpen = true;
+        }
+
+        function setupEventListeners(id) {
+            document.getElementById(id).addEventListener("click", () => {
+                if(!isSocketOpen) {
+                    throw new Error('The socket is closed');
+                }
+                socket.send(id);
+            });
+        }
+
+        setupEventListeners('left');
+        setupEventListeners('right');
+
+        function addClient(id) {
+            const containerElement = document.createElement('div');
+            containerElement.id = id;
+            containerElement.className = 'container';
+            const idElement = document.createElement('div');
+            idElement.className = 'id';
+            idElement.innerText = id;
+            containerElement.appendChild(idElement);
+            const circleElement = document.createElement('div');
+            circleElement.className = 'circle';
+            containerElement.appendChild(circleElement);
+            document.getElementById('flexContainer').appendChild(containerElement);
+        }
+
+        socket.onmessage = ({ data }) => {
+            const message = JSON.parse(data);
+            console.log(message);
+            switch (message.type) {
+                case 'myId':
+                    document.getElementById('myId').innerText += message.id;
+                    break;
+                case 'allConnections':
+                    message.ids.forEach(addClient);
+                    break;
+                case 'newConnection':
+                    addClient(message.id);
+                    break;
+                case 'movement':
+                    switch (message.direction) {
+                        case 'left':
+                            document.getElementById(message.id).querySelector('.circle').style.left = '0px';
+                            break;
+                        case 'right':
+                            document.getElementById(message.id).querySelector('.circle').style.left = '100px';
+                            break;
+                        default:
+                            throw new Error(`Direction not supported: ${message.direction}`);
+                            break;
+                    }
+                    break;
+                case 'deleteConnection':
+                    document.getElementById(message.id).remove();
+                    break;
+                default:
+                    throw new Error(`Message type not supported: ${message.type}`);
+                    break;
+            }
+        }
+        window.onpagehide = () => {
+            socket.close();
+        }
+    </script>
+</body>
+
+</html>
